@@ -1,0 +1,32 @@
+# Python-related files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+
+# Environment files
+.env
+*.env
+
+# Logs and debug output
+*.log
+*.out
+*.err
+
+# Virtual environments
+venv/
+
+# Temporary and system files
+.DS_Store
+Thumbs.db
+
+# IDE/editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Model and other large files (optional if stored externally)
+*.h5
+*.keras
