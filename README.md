@@ -1,6 +1,3 @@
-Here is the documentation for your Flask app in a `README.md` format, explaining how it works and how to interact with the API:
-
-```markdown
 # Music Genre Prediction API
 
 This API uses a pre-trained deep learning model to predict the genre of an audio file based on its content. It processes uploaded audio files and returns the predicted genre.
@@ -126,7 +123,6 @@ If there are any errors, such as invalid file type, the response will include an
 ### License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-```
 
 ### Explanation:
 1. **How It Works**: Explains the steps involved in downloading the model, processing the audio files, and predicting the genres.
