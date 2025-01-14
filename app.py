@@ -212,6 +212,13 @@ def predict():
 @app.route("/status/<task_id>", methods=["GET"])
 def get_status(task_id):
     """Check the status of a prediction task"""
+    # Update Celery configuration
+    celery = Celery(
+        'app',
+        broker=os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
+        backend=os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
+        broker_connection_retry_on_startup=True
+    )
     try:
         task = AsyncResult(task_id, app=celery)
         logger.info(f"Checking status for task {task_id}: {task.state}")
