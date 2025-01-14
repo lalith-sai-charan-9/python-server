@@ -4,9 +4,10 @@ buildCommand = "pip install -r requirements.txt"
 
 [deploy]
 startCommand = "celery -A celery_worker.celery worker --pool=solo -l debug --concurrency=1 --without-heartbeat --without-mingle"
-healthcheckPath = "/health"
-healthcheckTimeout = 300
 restartPolicy = "always"
 
 [service]
 memory = "2048"  # Set memory limit to 2GB
+
+[nixpacks]
+start-command = "celery -A celery_worker.celery worker --pool=solo -l debug --concurrency=1 --without-heartbeat --without-mingle"
