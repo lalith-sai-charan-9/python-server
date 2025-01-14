@@ -23,18 +23,21 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# Get Redis URL from environment
+REDIS_URL = os.getenv('REDIS_PUBLIC_URL', 'redis://localhost:6379/0')
+
 # Configure Celery with the Flask app
 celery = Celery(
     'app',
-    broker=os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
-    backend=os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
+    broker=REDIS_URL,
+    backend=REDIS_URL,
     broker_connection_retry_on_startup=True
 )
 
 # Celery configuration
 class CeleryConfig:
-    broker_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
-    result_backend = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+    broker_url = REDIS_URL
+    result_backend = REDIS_URL
     task_track_started = True
     task_serializer = 'json'
     result_serializer = 'json'
