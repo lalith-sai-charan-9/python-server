@@ -13,6 +13,7 @@ import time
 from celery import Celery
 from celery.result import AsyncResult
 import traceback
+import redis
 
 # Set up logging
 logging.basicConfig(
@@ -25,6 +26,9 @@ app = Flask(__name__)
 
 # Get Redis URL from environment
 REDIS_URL = os.getenv('REDIS_PUBLIC_URL', 'redis://localhost:6379/0')
+
+# Initialize Redis client
+redis_client = redis.Redis.from_url(REDIS_URL)
 
 # Configure Celery with the Flask app
 celery = Celery(
@@ -113,9 +117,9 @@ def allowed_file(filename):
     """Check if the uploaded file is a valid audio file."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def preprocess_audio(file_path, target_shape=(150, 150)):
+def preprocess_audio(file_data, target_shape=(150, 150)):
     data = []
-    audio_data, sample_rate = librosa.load(file_path, sr=None)
+    audio_data, sample_rate = librosa.load(io.BytesIO(file_data), sr=None)
     chunk_duration = 4  # seconds
     overlap_duration = 2  # seconds
     chunk_samples = chunk_duration * sample_rate
@@ -136,94 +140,97 @@ def preprocess_audio(file_path, target_shape=(150, 150)):
 
     return np.array(data)
 
-@celery.task(bind=True, name='app.process_audio_file')
-def process_audio_file(self, file_path):
-    """Celery task for processing audio files"""
+@celery.task(bind=True)
+def process_audio_file(self, filename, file_data):
+    """Process an audio file and return genre predictions."""
     try:
-        logger.info(f"Starting to process audio file: {file_path}")
+        logger.info(f"Starting to process audio file: {filename}")
         logger.info(f"Task ID: {self.request.id}")
         
-        if not os.path.exists(file_path):
-            logger.error(f"File not found: {file_path}")
-            return {"error": f"File not found: {file_path}"}
-
-        logger.info("Loading model...")
-        model = get_model()
-        logger.info("Model loaded successfully")
-
-        logger.info("Processing audio file...")
-        audio_features = preprocess_audio(file_path)
-        predictions = model.predict(audio_features)
-        genre_index = np.argmax(np.sum(predictions, axis=0))
-        genre = GENRES[genre_index]
-        logger.info(f"Prediction completed: {genre}")
-
-        # Clean up the uploaded file
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            logger.info(f"Cleaned up file: {file_path}")
-
-        return {
-            'status': 'completed',
-            'genre': genre,
-            'processing_time': time.time() - self.request.time_start
-        }
+        # Save file data to temporary file
+        temp_path = f"/tmp/{filename}"
+        with open(temp_path, "wb") as f:
+            f.write(file_data)
+        
+        try:
+            # Load and preprocess the audio file
+            features = preprocess_audio(temp_path)
+            
+            if features is None:
+                return {"error": "Failed to process audio file"}
+            
+            # Get model predictions
+            model = get_model()
+            predictions = model.predict(np.expand_dims(features, axis=0))
+            
+            # Get the predicted genre
+            predicted_index = np.argmax(predictions[0])
+            predicted_genre = GENRES[predicted_index]
+            confidence = float(predictions[0][predicted_index])
+            
+            # Create result dictionary
+            result = {
+                "genre": predicted_genre,
+                "confidence": confidence,
+                "predictions": {
+                    genre: float(pred) 
+                    for genre, pred in zip(GENRES, predictions[0])
+                }
+            }
+            
+            return result
+            
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+                
     except Exception as e:
-        logger.error(f"Error processing audio: {str(e)}")
+        logger.error(f"Error processing file: {str(e)}")
         logger.error(traceback.format_exc())
         return {"error": str(e)}
 
-@app.route("/predict", methods=["POST"])
+@app.route('/predict', methods=['POST'])
 def predict():
-    """Handle prediction requests"""
     try:
         logger.info("Received prediction request")
-        if "files" not in request.files:
-            logger.error("No files in request")
-            return jsonify({"error": "No files provided"}), 400
-
-        files = request.files.getlist("files")
-        if not files:
-            return jsonify({"error": "No files provided"}), 400
-
+        
+        if 'files' not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+        
+        files = request.files.getlist('files')
         results = []
-        os.makedirs("/tmp/uploads", exist_ok=True)
-
+        
         for file in files:
-            try:
-                logger.info(f"Processing file: {file.filename}")
-                if file and allowed_file(file.filename):
-                    filename = secure_filename(file.filename)
-                    file_path = os.path.join("/tmp/uploads", filename)
-                    file.save(file_path)
-                    logger.info(f"File saved to: {file_path}")
-
-                    # Submit task to Celery
-                    task = process_audio_file.delay(file_path)
-                    logger.info(f"Task created with ID: {task.id}")
-
-                    results.append({
-                        "file_name": filename,
-                        "task_id": task.id,
-                        "status": "processing"
-                    })
-                else:
-                    logger.error(f"Invalid file type: {file.filename}")
-                    results.append({
-                        "file_name": file.filename,
-                        "error": "Invalid file type"
-                    })
-            except Exception as e:
-                logger.error(f"Error processing {file.filename}: {str(e)}")
-                logger.error(traceback.format_exc())
+            if file.filename == '':
+                continue
+                
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                logger.info(f"Processing file: {filename}")
+                
+                # Read file data
+                file_data = file.read()
+                
+                # Create task
+                task = process_audio_file.delay(filename, file_data)
+                
+                results.append({
+                    "file_name": filename,
+                    "status": "processing",
+                    "task_id": task.id
+                })
+            else:
                 results.append({
                     "file_name": file.filename,
-                    "error": str(e)
+                    "status": "error",
+                    "error": "Invalid file type"
                 })
-
-        return jsonify(results), 202
+        
+        return jsonify(results)
+        
     except Exception as e:
-        logger.error(f"Error in predict endpoint: {str(e)}")
+        logger.error(f"Error in predict: {str(e)}")
         logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
