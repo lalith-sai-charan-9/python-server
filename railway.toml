@@ -1,13 +1,13 @@
 [build]
-    builder = "nixpacks"
-    buildCommand = "pip install -r requirements.txt"
-    
-    [deploy]
-    startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT --timeout 600 --workers 1 --threads 1"
-    healthcheckPath = "/health"
-    healthcheckTimeout = 300
-    restartPolicy = "always"
-    
-    [service]
-    internal_port = 8080
-    memory = "512"  # Set memory limit to 512MB
+builder = "nixpacks"
+buildCommand = "pip install -r requirements.txt"
+
+[deploy]
+startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT --timeout 600 --workers 1 --threads 1"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicy = "always"
+
+[service]
+internal_port = 8080
+memory = "512"  # Set memory limit to 512MB

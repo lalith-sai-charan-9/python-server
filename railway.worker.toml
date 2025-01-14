@@ -1,13 +1,13 @@
 [build]
-    builder = "nixpacks"
-    buildCommand = "pip install -r requirements.txt"
-    
-    [deploy]
-    startCommand = "celery -A celery_worker.celery worker --pool=solo -l debug --concurrency=1 --without-heartbeat --without-mingle"
-    restartPolicy = "always"
-    
-    [service]
-    memory = "512"  # Set memory limit to 512MB
-    
-    [nixpacks]
-    start-command = "celery -A celery_worker.celery worker --pool=solo -l debug --concurrency=1 --without-heartbeat --without-mingle"
+builder = "nixpacks"
+buildCommand = "pip install -r requirements.txt"
+
+[deploy]
+startCommand = "celery -A celery_worker.celery worker --pool=solo -l debug --concurrency=1 --without-heartbeat --without-mingle"
+restartPolicy = "always"
+
+[service]
+memory = "512"  # Set memory limit to 512MB
+
+[nixpacks]
+start-command = "celery -A celery_worker.celery worker --pool=solo -l debug --concurrency=1 --without-heartbeat --without-mingle"
