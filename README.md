@@ -1,134 +1,210 @@
-# Music Genre Prediction API
+# Music Genre Classification API
 
-This API uses a pre-trained deep learning model to predict the genre of an audio file based on its content. It processes uploaded audio files and returns the predicted genre.
+This API service uses deep learning to classify music genres from audio files. It processes audio files asynchronously and returns the predicted genre.
 
-## How It Works
+## Supported Genres
 
-1. **Model Download**: Upon the first startup, the model is downloaded from Google Drive if not already present. The model is a deep learning model trained on audio data to classify music genres.
-   
-2. **Audio Preprocessing**: The uploaded audio file is processed into chunks, and each chunk is converted into a mel spectrogram, which is then fed into the model for prediction.
+- Blues
+- Classical
+- Country
+- Disco
+- Hip Hop
+- Jazz
+- Metal
+- Pop
+- Reggae
+- Rock
 
-3. **Genre Prediction**: The model predicts the genre for each chunk of audio. The genre with the highest sum of predictions across chunks is returned as the overall genre.
+## Requirements
 
-4. **Allowed File Formats**: The API supports the following audio formats:
-   - `.mp3`
-   - `.wav`
-   - `.flac`
+- Python 3.10 or 3.11
+- Redis Server
+- Virtual Environment (recommended)
 
-## API Endpoint
+## Installation & Setup
 
-### POST `/predict`
-
-This endpoint processes one or more audio files and returns the predicted genre(s).
-
-#### Request
-
-- **Method**: `POST`
-- **URL**: `http://<your-server-ip>:5000/predict`
-- **Headers**: None
-- **Body**: 
-  - The request must be a `multipart/form-data` containing one or more audio files under the key `files`.
-
-#### Example Request (Single File)
-
-```bash
-curl -X POST -F "files=@path/to/your/audio/file.mp3" http://<your-server-ip>:5000/predict
-```
-
-#### Example Request (Multiple Files)
-
-```bash
-curl -X POST -F "files=@path/to/your/audio/file1.mp3" -F "files=@path/to/your/audio/file2.mp3" http://<your-server-ip>:5000/predict
-```
-
-#### Response
-
-The response will be a JSON array where each entry corresponds to a processed file. Each entry contains:
-- `file_name`: The name of the uploaded file.
-- `genre`: The predicted genre of the file (for valid files).
-- `error`: If an error occurred during processing (e.g., invalid file type or processing failure).
-
-##### Example Response (Single File)
-
-```json
-[
-  {
-    "file_name": "file.mp3",
-    "genre": "rock"
-  }
-]
-```
-
-##### Example Response (Multiple Files)
-
-```json
-[
-  {
-    "file_name": "file1.mp3",
-    "genre": "pop"
-  },
-  {
-    "file_name": "file2.mp3",
-    "genre": "classical"
-  }
-]
-```
-
-If there are any errors, such as invalid file type, the response will include an error message in the `error` field:
-
-```json
-[
-  {
-    "file_name": "file.mp3",
-    "error": "Invalid file type"
-  }
-]
-```
-
-## How to Run the Server Locally
-
-1. **Clone the repository**:
+1. **Clone the Repository**
    ```bash
    git clone <repository-url>
    cd <repository-directory>
    ```
 
-2. **Install Dependencies**:
-   Make sure you have Python 3.x installed. Then install the required Python libraries using pip:
+2. **Set Up Virtual Environment**
+   ```bash
+   python -m venv venv
+   
+   # On Windows
+   .\venv\Scripts\activate
+   
+   # On Linux/Mac
+   source venv/bin/activate
+   ```
+
+3. **Install Dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Start the Flask Application**:
-   Run the Flask app with:
+4. **Install and Start Redis Server**
+   - Windows:
+     1. Download Redis for Windows from [https://github.com/microsoftarchive/redis/releases](https://github.com/microsoftarchive/redis/releases)
+     2. Install the MSI package
+     3. Redis will run automatically as a Windows service
+   
+   - Linux:
+     ```bash
+     sudo apt-get update
+     sudo apt-get install redis-server
+     sudo systemctl start redis
+     ```
+
+## Deployment
+
+1. **Start Redis Server** (if not running as a service)
+   ```bash
+   redis-server
+   ```
+
+2. **Start Celery Worker**
+   ```bash
+   # Activate virtual environment if not already activated
+   celery -A celery_worker.celery worker --pool=solo -l info
+   ```
+
+3. **Start Flask Application**
    ```bash
    python app.py
    ```
-   The app will run on `http://127.0.0.1:5000/` by default.
 
-## Notes
+## API Documentation
 
-- Ensure that the model file (`Trained_model.h5`) is downloaded before starting the server. The app will attempt to download the model automatically if it doesn't already exist.
-- The API is designed to process multiple files in one request. Each file will be processed independently, and the predicted genre for each file will be included in the response.
-- Clean-up: After processing the files, the uploaded files are deleted from the server to save storage space.
+### 1. Predict Genre
 
-## Troubleshooting
+**Endpoint:** `/predict`
+**Method:** POST
+**Content-Type:** multipart/form-data
 
-- **No files provided**: If no files are sent with the request, the API will return a `400` status code with the error message `"No files provided"`.
-- **Invalid file type**: If an unsupported file type is uploaded, the API will return a `400` status code with the error message `"Invalid file type"`.
-- **Model download failure**: If the model fails to download from Google Drive, the server will log the error and raise an exception.
+**Request:**
+- Form parameter: `files` (accepts multiple audio files)
+- Supported formats: .mp3, .wav, .flac
 
----
+```bash
+curl -X POST -F "files=@path/to/your/audio.mp3" http://your-domain:5000/predict
+```
 
-### License
+**Response:**
+```json
+[
+    {
+        "file_name": "audio.mp3",
+        "task_id": "task-uuid",
+        "status": "processing"
+    }
+]
+```
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### 2. Check Prediction Status
 
-### Explanation:
-1. **How It Works**: Explains the steps involved in downloading the model, processing the audio files, and predicting the genres.
-2. **API Endpoint**: Provides details on how to use the `POST /predict` endpoint.
-3. **Request and Response Examples**: Includes cURL examples for uploading one or multiple files, along with possible response formats.
-4. **How to Run Locally**: Describes the steps to run the Flask app on your local machine, including dependency installation and app startup.
-5. **Troubleshooting**: Addresses common issues and how they are handled by the API.
+**Endpoint:** `/status/<task_id>`
+**Method:** GET
 
-This documentation will help users understand how to interact with your API and what to expect from it.
+```bash
+curl http://your-domain:5000/status/<task_id>
+```
+
+**Response:**
+```json
+{
+    "status": "completed",
+    "result": {
+        "genre": "jazz",
+        "processing_time": 2.5,
+        "status": "completed"
+    }
+}
+```
+
+**Possible Status Values:**
+- `processing`: Task is still running
+- `completed`: Task finished successfully
+- `error`: Task failed with an error
+
+## Error Handling
+
+The API returns appropriate HTTP status codes:
+- 200: Successful request
+- 202: Request accepted (for async processing)
+- 400: Bad request (invalid file type, no file provided)
+- 500: Server error
+
+## Production Deployment
+
+For production deployment:
+
+1. **Update Security Settings**
+   - Set proper CORS headers
+   - Use HTTPS
+   - Set up proper authentication if needed
+
+2. **Environment Variables**
+   - Set `PORT` for custom port (default: 5000)
+   - Set `REDIS_URL` for custom Redis configuration
+
+3. **Supervisor Configuration (Linux)**
+   Create `/etc/supervisor/conf.d/music-genre-api.conf`:
+   ```ini
+   [program:celery]
+   command=/path/to/venv/bin/celery -A celery_worker.celery worker --pool=solo -l info
+   directory=/path/to/project
+   user=your_user
+   autostart=true
+   autorestart=true
+   
+   [program:flask]
+   command=/path/to/venv/bin/python app.py
+   directory=/path/to/project
+   user=your_user
+   autostart=true
+   autorestart=true
+   ```
+
+4. **Nginx Configuration (Optional)**
+   ```nginx
+   server {
+       listen 80;
+       server_name your_domain.com;
+
+       location / {
+           proxy_pass http://localhost:5000;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+       }
+   }
+   ```
+
+## Monitoring
+
+- Check Celery worker logs for task processing
+- Check Flask application logs for API requests
+- Monitor Redis server status
+- Watch for disk space (temporary files)
+
+## Common Issues
+
+1. **Redis Connection Error**
+   - Verify Redis is running: `redis-cli ping`
+   - Check Redis service status
+   
+2. **Task Stuck in Processing**
+   - Check Celery worker logs
+   - Verify worker is running
+   - Check Redis connection
+
+3. **File Upload Issues**
+   - Verify file format is supported
+   - Check file size limits
+   - Ensure proper permissions on upload directory
+
+## Support
+
+For issues and support, please create an issue in the repository or contact the maintainers.
