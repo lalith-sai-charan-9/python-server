@@ -25,16 +25,16 @@ app = Flask(__name__)
 
 # Configure Celery with the Flask app
 celery = Celery(
-    'app',  
-    broker='redis://localhost:6379/0',
-    backend='redis://localhost:6379/0',
+    'app',
+    broker=os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
+    backend=os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
     broker_connection_retry_on_startup=True
 )
 
 # Celery configuration
 class CeleryConfig:
-    broker_url = 'redis://localhost:6379/0'
-    result_backend = 'redis://localhost:6379/0'
+    broker_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+    result_backend = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
     task_track_started = True
     task_serializer = 'json'
     result_serializer = 'json'
@@ -212,13 +212,6 @@ def predict():
 @app.route("/status/<task_id>", methods=["GET"])
 def get_status(task_id):
     """Check the status of a prediction task"""
-    # Update Celery configuration
-    celery = Celery(
-        'app',
-        broker=os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
-        backend=os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
-        broker_connection_retry_on_startup=True
-    )
     try:
         task = AsyncResult(task_id, app=celery)
         logger.info(f"Checking status for task {task_id}: {task.state}")
